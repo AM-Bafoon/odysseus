@@ -201,3 +201,36 @@ def blocked_tools_for_owner(owner: Optional[str]) -> Set[str]:
     if owner_is_admin_or_single_user(owner):
         return set()
     return set(NON_ADMIN_BLOCKED_TOOLS)
+
+def blocked_tools_for_endpoint(endpoint_url: Optional[str]) -> Set[str]:
+    """Tools to block for a specific model endpoint.
+
+    Reads the blocked_tools JSON column from model_endpoints so admins
+    can prevent specific tools (e.g. email tools) from being called when
+    a cloud API endpoint is active, regardless of user role.
+    Returns an empty set if the endpoint has no restrictions or is not found.
+    """
+    if not endpoint_url:
+        return set()
+    try:
+        from core.database import ModelEndpoint, SessionLocal
+        import json
+        db = SessionLocal()
+        try:
+            lookup_url = endpoint_url
+            for suffix in ('/chat/completions', '/completions', '/v1/messages'):
+                if lookup_url.endswith(suffix):
+                    lookup_url = lookup_url[:-len(suffix)].rstrip('/')
+                    break
+            ep = db.query(ModelEndpoint).filter(
+                ModelEndpoint.base_url == lookup_url
+            ).first()
+            if ep and ep.blocked_tools:
+                names = json.loads(ep.blocked_tools)
+                if isinstance(names, list):
+                    return set(names)
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("Unable to load endpoint blocked tools: %s", exc)
+    return set()        

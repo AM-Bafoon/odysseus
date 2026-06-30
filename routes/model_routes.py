@@ -1674,6 +1674,7 @@ def setup_model_routes(model_discovery):
                                 "ping_error": (ping or {}).get("error") if ping else None,
                                 "model_type": getattr(r, "model_type", None) or "llm",
                                 "supports_tools": getattr(r, "supports_tools", None),
+                                "blocked_tools": json.loads(r.blocked_tools) if getattr(r, "blocked_tools", None) else [],
                                 "endpoint_kind": kind,
                                 "category": _classify_endpoint(base, kind),
                                 "model_refresh_mode": _endpoint_refresh_mode(r, kind),
@@ -1714,6 +1715,7 @@ def setup_model_routes(model_discovery):
                     "ping_error": (ping or {}).get("error") if ping else None,
                     "model_type": getattr(r, "model_type", None) or "llm",
                     "supports_tools": getattr(r, "supports_tools", None),
+                    "blocked_tools": json.loads(r.blocked_tools) if getattr(r, "blocked_tools", None) else [],
                     "endpoint_kind": kind,
                     "category": _classify_endpoint(base, kind),
                     "model_refresh_mode": _endpoint_refresh_mode(r, kind),
@@ -2251,6 +2253,13 @@ def setup_model_routes(model_discovery):
                 if "pinned_models" in body:
                     _pinned = _normalize_model_ids(body["pinned_models"])
                     ep.pinned_models = json.dumps(_pinned) if _pinned else None
+                if "blocked_tools" in body:
+                    _bt = body["blocked_tools"]
+                    if isinstance(_bt, list):
+                        _bt = [t for t in _bt if isinstance(t, str) and t.strip()]
+                        ep.blocked_tools = json.dumps(_bt) if _bt else None
+                    elif _bt is None:
+                        ep.blocked_tools = None
                 if "endpoint_kind" in body:
                     ep.endpoint_kind = _normalize_endpoint_kind(body.get("endpoint_kind"))
                 if "model_refresh_mode" in body:

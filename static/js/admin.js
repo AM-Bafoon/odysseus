@@ -733,12 +733,54 @@ async function loadEndpoints() {
               cb.addEventListener('change', () => _saveEpModelState(epId, panel));
             });
           };
+
+          const BLOCKED_TOOL_OPTIONS = [
+            { id: 'list_email_accounts',              label: 'List email accounts' },
+            { id: 'read_email',                       label: 'Read email' },
+            { id: 'list_emails',                      label: 'List emails' },
+            { id: 'send_email',                       label: 'Send email' },
+            { id: 'reply_to_email',                   label: 'Reply to email' },
+            { id: 'delete_email',                     label: 'Delete email' },
+            { id: 'archive_email',                    label: 'Archive email' },
+            { id: 'mark_email_read',                  label: 'Mark email read' },
+            { id: 'bulk_email',                       label: 'Bulk email actions' },
+            { id: 'manage_calendar',                  label: 'Calendar' },
+            { id: 'manage_contact,resolve_contact',   label: 'Contacts' },
+            { id: 'bash',                             label: 'Shell (bash)' },
+            { id: 'python',                           label: 'Python execution' },
+          ];
+
+          const renderBlockedTools = (currentBlocked) => {
+            const blockedSet = new Set(currentBlocked || []);
+            let btHtml = '<div class="mcp-tools-header" style="margin-top:12px;"><span>Blocked Tools</span><span style="opacity:0.5;font-size:11px;">checked = blocked for this endpoint</span></div><div class="mcp-tools-list">';
+            btHtml += BLOCKED_TOOL_OPTIONS.map(t => {
+              const idList = t.id.split(',');
+              const isChecked = idList.some(id => blockedSet.has(id));
+              return '<label class="adm-model-row">' +
+                '<input type="checkbox" class="adm-cb-hidden" data-ep-blocked-tool="' + esc(t.id) + '" ' + (isChecked ? 'checked' : '') + '>' +
+                '<span class="adm-check-dot" aria-hidden="true"></span>' +
+                '<span>' + esc(t.label) + '</span>' +
+                '</label>';
+            }).join('');
+            btHtml += '</div>';
+            panel.insertAdjacentHTML('beforeend', btHtml);
+            panel.querySelectorAll('input[data-ep-blocked-tool]').forEach(cb => {
+              cb.addEventListener('change', () => _saveEpBlockedTools(epId, panel));
+            });
+          };
+
           try {
-            const res = await fetch(`/api/model-endpoints/${epId}/models`, { credentials: 'same-origin' });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const models = await res.json();
+            const [modelsRes, epRes] = await Promise.all([
+              fetch(`/api/model-endpoints/${epId}/models`, { credentials: 'same-origin' }),
+              fetch('/api/model-endpoints', { credentials: 'same-origin' }),
+            ]);
+            if (!modelsRes.ok) throw new Error(`HTTP ${modelsRes.status}`);
+            const models = await modelsRes.json();
+            const allEps = epRes.ok ? await epRes.json() : [];
+            const epData = allEps.find(e => String(e.id) === String(epId)) || {};
             _stopSpin();
             renderModels(models);
+            renderBlockedTools(epData.blocked_tools || []);
           } catch (e) { _stopSpin(); panel.innerHTML = '<span class="admin-error" style="font-size:11px;">Failed to load models</span>'; }
         }
       });
@@ -772,6 +814,21 @@ async function _saveEpModelState(epId, panel) {
     if (settingsModule && typeof settingsModule.refreshAiModelEndpoints === 'function') {
       settingsModule.refreshAiModelEndpoints();
     }
+  } catch (e) { /* silent */ }
+}
+
+async function _saveEpBlockedTools(epId, panel) {
+  const blocked = [];
+  panel.querySelectorAll('input[data-ep-blocked-tool]').forEach(cb => {
+    if (cb.checked) blocked.push(...cb.dataset.epBlockedTool.split(','));
+  });
+  try {
+    await fetch(`/api/model-endpoints/${epId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ blocked_tools: blocked }),
+    });
   } catch (e) { /* silent */ }
 }
 

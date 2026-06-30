@@ -19,7 +19,7 @@ from src.llm_core import stream_llm, stream_llm_with_fallback, _is_ollama_native
 from src.model_context import estimate_tokens
 from src.settings import get_setting
 from src.prompt_security import untrusted_context_message
-from src.tool_security import blocked_tools_for_owner, plan_mode_disabled_tools
+from src.tool_security import blocked_tools_for_owner, plan_mode_disabled_tools, blocked_tools_for_endpoint
 from src.tool_policy import GUIDE_ONLY_DIRECTIVE, ToolPolicy
 from src.tool_utils import _truncate, get_mcp_manager
 from src.agent_tools import (
@@ -1981,6 +1981,11 @@ async def stream_agent_loop(
         # MCP tools are namespaced dynamically, so hide all MCP schemas for
         # public/non-admin users rather than trying to enumerate every tool.
         mcp_mgr = None
+
+    # Block tools configured per-endpoint (e.g. email tools on cloud endpoints)
+    endpoint_blocked = blocked_tools_for_endpoint(endpoint_url)
+    if endpoint_blocked:
+        disabled_tools.update(endpoint_blocked)
 
     if plan_mode:
         # Plan mode: investigate read-only, propose a plan, don't execute. The
